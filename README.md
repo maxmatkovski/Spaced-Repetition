@@ -177,6 +177,12 @@ python app.py
 2. A Render.com account (free tier available)
 3. Your application code pushed to a GitHub repository
 
+### Automatic Deployments
+- Every push to the main branch triggers an automatic deployment
+- Changes typically go live within 5-10 minutes
+- You can monitor deployments in the Render dashboard
+- Deploy logs are available in real-time
+
 ### Step 1: Prepare Your Repository
 1. Create a new GitHub repository
 2. Initialize git in your local project (if not already done):

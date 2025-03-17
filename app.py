@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 import json
 import os
 import logging
+import uuid
+from models import db, UserActivity, CardReview, AlgorithmPerformance, Analytics
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -25,7 +27,7 @@ template_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'templat
 if not os.path.exists(template_dir):
     os.makedirs(template_dir)
 
-db = SQLAlchemy(app)
+db.init_app(app)
 
 class Card(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -121,10 +123,57 @@ def create_app():
             create_test_cards()
     return app
 
+def track_user_activity(action):
+    """Track user activity with session management"""
+    session_id = request.cookies.get('session_id', str(uuid.uuid4()))
+    activity = UserActivity(
+        session_id=session_id,
+        action=action,
+        ip_address=request.remote_addr,
+        user_agent=request.user_agent.string
+    )
+    db.session.add(activity)
+    db.session.commit()
+    return session_id
+
+def update_analytics(session_id, algorithm=None, rating=None):
+    """Update daily analytics"""
+    today = datetime.utcnow().date()
+    analytics = Analytics.query.filter_by(date=today).first()
+    
+    if not analytics:
+        analytics = Analytics(
+            date=today,
+            total_reviews=0,
+            unique_sessions=0,
+            daily_stats={'sm2_reviews': 0, 'fsrs_reviews': 0}
+        )
+        db.session.add(analytics)
+    
+    analytics.total_reviews += 1
+    if algorithm:
+        analytics.daily_stats[f'{algorithm}_reviews'] += 1
+    
+    # Update retention rates
+    if rating and rating >= 3:
+        if algorithm == 'sm2':
+            analytics.avg_retention_sm2 = (
+                (analytics.avg_retention_sm2 or 0) * analytics.daily_stats['sm2_reviews'] + 100
+            ) / (analytics.daily_stats['sm2_reviews'] + 1)
+        elif algorithm == 'fsrs':
+            analytics.avg_retention_fsrs = (
+                (analytics.avg_retention_fsrs or 0) * analytics.daily_stats['fsrs_reviews'] + 100
+            ) / (analytics.daily_stats['fsrs_reviews'] + 1)
+    
+    db.session.commit()
+
 @app.route('/')
 def index():
     try:
-        return render_template('index.html')
+        session_id = track_user_activity('page_view')
+        response = make_response(render_template('index.html'))
+        response.set_cookie('session_id', session_id, max_age=86400)  # 24 hours
+        return response
     except Exception as e:
         logger.error(f"Error rendering template: {str(e)}")
         return f"Error: {str(e)}", 500
@@ -171,11 +220,22 @@ def review_card():
     rating = data['rating']
     algorithm = data['algorithm']
     now = datetime.utcnow()
-
-    # Update review statistics
+    session_id = request.cookies.get('session_id', str(uuid.uuid4()))
+    
+    # Track the review
+    review = CardReview(
+        session_id=session_id,
+        card_id=card.id,
+        algorithm=algorithm,
+        rating=rating,
+        previous_interval=card.sm2_interval if algorithm == 'sm2' else card.fsrs_stability,
+        review_time=data.get('review_time', 0)
+    )
+    
+    # Update card and get new intervals
     if algorithm == 'sm2':
         card.sm2_total_reviews += 1
-        if rating >= 3:  # Consider rating 3 and 4 as correct
+        if rating >= 3:
             card.sm2_correct_reviews += 1
         
         sm2 = SM2()
@@ -189,9 +249,10 @@ def review_card():
         card.sm2_repetitions = repetitions
         card.sm2_ease_factor = ease_factor
         card.sm2_next_review = now + timedelta(days=interval)
+        review.new_interval = interval
     else:
         card.fsrs_total_reviews += 1
-        if rating >= 3:  # Consider rating 3 and 4 as correct
+        if rating >= 3:
             card.fsrs_correct_reviews += 1
             
         fsrs = FSRS()
@@ -206,8 +267,26 @@ def review_card():
         card.fsrs_difficulty = new_d
         card.fsrs_stability = new_s
         card.fsrs_next_review = now + timedelta(days=next_interval)
+        review.new_interval = next_interval
 
+    # Save review and update analytics
+    db.session.add(review)
+    update_analytics(session_id, algorithm, rating)
     db.session.commit()
+
+    # Track algorithm performance
+    perf = AlgorithmPerformance(
+        session_id=session_id,
+        algorithm=algorithm,
+        metrics={
+            'rating': rating,
+            'interval_change': review.new_interval - review.previous_interval,
+            'review_time': review.review_time
+        }
+    )
+    db.session.add(perf)
+    db.session.commit()
+
     return jsonify({'message': 'Review recorded successfully'})
 
 @app.route('/statistics')
@@ -337,6 +416,65 @@ def create_test_cards():
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     return send_from_directory('static', filename)
+
+@app.route('/analytics')
+def get_analytics():
+    """Get detailed analytics data"""
+    try:
+        # Get date range
+        days = int(request.args.get('days', 7))
+        end_date = datetime.utcnow().date()
+        start_date = end_date - timedelta(days=days)
+        
+        # Get analytics data
+        analytics_data = Analytics.query.filter(
+            Analytics.date >= start_date,
+            Analytics.date <= end_date
+        ).all()
+        
+        # Prepare response data
+        response = {
+            'daily_stats': [],
+            'algorithm_comparison': {
+                'sm2': {'total_reviews': 0, 'avg_retention': 0},
+                'fsrs': {'total_reviews': 0, 'avg_retention': 0}
+            },
+            'user_engagement': {
+                'total_unique_sessions': len(set(UserActivity.query.with_entities(UserActivity.session_id).all())),
+                'total_reviews': sum(a.total_reviews for a in analytics_data)
+            }
+        }
+        
+        # Process daily stats
+        for analytic in analytics_data:
+            response['daily_stats'].append({
+                'date': analytic.date.isoformat(),
+                'total_reviews': analytic.total_reviews,
+                'sm2_reviews': analytic.daily_stats.get('sm2_reviews', 0),
+                'fsrs_reviews': analytic.daily_stats.get('fsrs_reviews', 0),
+                'sm2_retention': analytic.avg_retention_sm2 or 0,
+                'fsrs_retention': analytic.avg_retention_fsrs or 0
+            })
+            
+            # Update algorithm totals
+            response['algorithm_comparison']['sm2']['total_reviews'] += analytic.daily_stats.get('sm2_reviews', 0)
+            response['algorithm_comparison']['fsrs']['total_reviews'] += analytic.daily_stats.get('fsrs_reviews', 0)
+        
+        # Calculate averages
+        if response['algorithm_comparison']['sm2']['total_reviews'] > 0:
+            response['algorithm_comparison']['sm2']['avg_retention'] = sum(
+                d['sm2_retention'] * d['sm2_reviews'] for d in response['daily_stats']
+            ) / response['algorithm_comparison']['sm2']['total_reviews']
+            
+        if response['algorithm_comparison']['fsrs']['total_reviews'] > 0:
+            response['algorithm_comparison']['fsrs']['avg_retention'] = sum(
+                d['fsrs_retention'] * d['fsrs_reviews'] for d in response['daily_stats']
+            ) / response['algorithm_comparison']['fsrs']['total_reviews']
+        
+        return jsonify(response)
+    except Exception as e:
+        logger.error(f"Error getting analytics: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 def init_db():
     with app.app_context():
