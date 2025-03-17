@@ -10,13 +10,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'flashcards.db')
+
+# Use environment variable for database URL in production
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), 'flashcards.db'))
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'your-secret-key-here'  # Add a secret key for security
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-secret-key')
 
 # Ensure the template directory exists
-template_dir = os.path.join(basedir, 'templates')
+template_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'templates')
 if not os.path.exists(template_dir):
     os.makedirs(template_dir)
 
@@ -333,7 +338,7 @@ def create_test_cards():
 def serve_static(filename):
     return send_from_directory('static', filename)
 
-if __name__ == '__main__':
+def init_db():
     with app.app_context():
         db.create_all()
         # Check if we already have cards
@@ -341,6 +346,9 @@ if __name__ == '__main__':
         logger.info(f"Found {card_count} existing cards")
         if card_count == 0:
             create_test_cards()
-    
-    # Run the app with debug mode and allow all hosts
-    app.run(debug=True, host='0.0.0.0', port=8000, threaded=True) 
+
+if __name__ == '__main__':
+    init_db()
+    # Only use debug mode in development
+    port = int(os.environ.get('PORT', 8000))
+    app.run(host='0.0.0.0', port=port) 
