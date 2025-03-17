@@ -35,6 +35,18 @@
     <div class="container mx-auto px-4 py-8">
         <h1 class="text-3xl font-bold text-center mb-8">Spaced Repetition Comparison</h1>
         
+        <!-- Control Buttons -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <div class="flex justify-center space-x-4">
+                <button onclick="resetCards()" class="bg-red-500 text-white px-6 py-2 rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                    Reset All Cards
+                </button>
+                <button onclick="upgradeCards()" class="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                    Make All Cards Due Now
+                </button>
+            </div>
+        </div>
+
         <!-- Statistics Section -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-8">
             <h2 class="text-xl font-semibold mb-4">Algorithm Performance</h2>
@@ -58,6 +70,27 @@
                         <p>Accuracy: <span id="fsrsAccuracy">0</span>%</p>
                         <p>Average Stability: <span id="fsrsAvgStability">0</span> days</p>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deck Status -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Deck Status</h2>
+            <div class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="text-lg font-medium mb-2">SM2 Status</h3>
+                        <p id="sm2Status" class="text-lg"></p>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-medium mb-2">FSRS Status</h3>
+                        <p id="fsrsStatus" class="text-lg"></p>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <h3 class="text-lg font-medium mb-2">Algorithm Comparison</h3>
+                    <p id="algorithmComparison" class="text-lg"></p>
                 </div>
             </div>
         </div>
@@ -196,6 +229,24 @@
             document.getElementById('fsrsAvgStability').textContent = stats.fsrs.average_stability.toFixed(1);
         }
 
+        async function updateDeckStatus() {
+            const response = await fetch('/deck_status');
+            const status = await response.json();
+            
+            // Update SM2 status
+            document.getElementById('sm2Status').textContent = status.sm2_due === 0 
+                ? "All cards reviewed! ✅" 
+                : `${status.sm2_due} cards due for review`;
+            
+            // Update FSRS status
+            document.getElementById('fsrsStatus').textContent = status.fsrs_due === 0 
+                ? "All cards reviewed! ✅" 
+                : `${status.fsrs_due} cards due for review`;
+            
+            // Update comparison
+            document.getElementById('algorithmComparison').textContent = status.comparison;
+        }
+
         async function rateCard(algorithm, rating) {
             const card = algorithm === 'sm2' ? currentSM2Card : currentFSRSCard;
             if (!card) return;
@@ -225,6 +276,7 @@
                 }
                 await loadCards();
                 await updateStatistics();
+                await updateDeckStatus();
             }
         }
 
@@ -235,6 +287,51 @@
         // Load initial cards and statistics
         loadCards();
         updateStatistics();
+        updateDeckStatus();
+
+        async function resetCards() {
+            if (!confirm('Are you sure you want to reset all cards? This will delete all progress.')) {
+                return;
+            }
+
+            const response = await fetch('/reset', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                alert('Cards reset successfully');
+                await loadCards();
+                await updateStatistics();
+                await updateDeckStatus();
+            } else {
+                alert('Failed to reset cards');
+            }
+        }
+
+        async function upgradeCards() {
+            if (!confirm('Are you sure you want to make all cards due now?')) {
+                return;
+            }
+
+            const response = await fetch('/upgrade_all', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (response.ok) {
+                alert('All cards are now due for review');
+                await loadCards();
+                await updateStatistics();
+                await updateDeckStatus();
+            } else {
+                alert('Failed to upgrade cards');
+            }
+        }
     </script>
 </body>
 </html> 

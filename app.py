@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 import json
@@ -13,6 +13,13 @@ app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'flashcards.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = 'your-secret-key-here'  # Add a secret key for security
+
+# Ensure the template directory exists
+template_dir = os.path.join(basedir, 'templates')
+if not os.path.exists(template_dir):
+    os.makedirs(template_dir)
+
 db = SQLAlchemy(app)
 
 class Card(db.Model):
@@ -41,6 +48,7 @@ class SM2:
         self.interval = 0
         self.repetitions = 0
         self.ease_factor = 2.5
+        self.max_interval = 365  # Maximum interval of 1 year
 
     def calculate(self, quality):
         if quality >= 3:
@@ -49,14 +57,15 @@ class SM2:
             elif self.repetitions == 1:
                 self.interval = 6
             else:
-                self.interval = round(self.interval * self.ease_factor)
+                self.interval = min(round(self.interval * self.ease_factor), self.max_interval)
             
             self.ease_factor += (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-            self.ease_factor = max(1.3, self.ease_factor)
+            self.ease_factor = max(1.3, min(2.5, self.ease_factor))  # Cap ease factor between 1.3 and 2.5
             self.repetitions += 1
         else:
             self.interval = 1
             self.repetitions = 0
+            self.ease_factor = max(1.3, self.ease_factor - 0.2)  # Decrease ease factor on failure
         
         return self.interval, self.repetitions, self.ease_factor
 
@@ -109,7 +118,11 @@ def create_app():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        logger.error(f"Error rendering template: {str(e)}")
+        return f"Error: {str(e)}", 500
 
 @app.route('/add_card', methods=['POST'])
 def add_card():
@@ -218,6 +231,80 @@ def get_statistics():
     
     return jsonify(stats)
 
+@app.route('/reset', methods=['POST'])
+def reset_cards():
+    try:
+        # Delete all existing cards
+        Card.query.delete()
+        db.session.commit()
+        
+        # Create new test cards
+        create_test_cards()
+        
+        return jsonify({'message': 'Cards reset successfully'})
+    except Exception as e:
+        logger.error(f"Error resetting cards: {str(e)}")
+        return jsonify({'error': 'Failed to reset cards'}), 500
+
+@app.route('/upgrade_all', methods=['POST'])
+def upgrade_all():
+    try:
+        cards = Card.query.all()
+        now = datetime.utcnow()
+        
+        for card in cards:
+            # Move all cards to be due now
+            card.sm2_next_review = now
+            card.fsrs_next_review = now
+        
+        db.session.commit()
+        return jsonify({'message': 'All cards upgraded to be due now'})
+    except Exception as e:
+        logger.error(f"Error upgrading cards: {str(e)}")
+        return jsonify({'error': 'Failed to upgrade cards'}), 500
+
+@app.route('/deck_status')
+def deck_status():
+    now = datetime.utcnow()
+    sm2_due = Card.query.filter(Card.sm2_next_review <= now).count()
+    fsrs_due = Card.query.filter(Card.fsrs_next_review <= now).count()
+    
+    cards = Card.query.all()
+    stats = {
+        'sm2': {
+            'total_reviews': sum(card.sm2_total_reviews for card in cards),
+            'correct_reviews': sum(card.sm2_correct_reviews for card in cards),
+            'accuracy': 0,
+            'average_interval': sum(card.sm2_interval for card in cards) / len(cards) if cards else 0
+        },
+        'fsrs': {
+            'total_reviews': sum(card.fsrs_total_reviews for card in cards),
+            'correct_reviews': sum(card.fsrs_correct_reviews for card in cards),
+            'accuracy': 0,
+            'average_stability': sum(card.fsrs_stability for card in cards) / len(cards) if cards else 0
+        }
+    }
+    
+    if stats['sm2']['total_reviews'] > 0:
+        stats['sm2']['accuracy'] = (stats['sm2']['correct_reviews'] / stats['sm2']['total_reviews']) * 100
+    if stats['fsrs']['total_reviews'] > 0:
+        stats['fsrs']['accuracy'] = (stats['fsrs']['correct_reviews'] / stats['fsrs']['total_reviews']) * 100
+    
+    comparison = ""
+    if stats['sm2']['total_reviews'] > 0 and stats['fsrs']['total_reviews'] > 0:
+        if stats['sm2']['accuracy'] > stats['fsrs']['accuracy']:
+            comparison = "SM2 is currently performing better with higher accuracy. It's a simpler algorithm that works well for consistent study habits."
+        elif stats['fsrs']['accuracy'] > stats['sm2']['accuracy']:
+            comparison = "FSRS is currently performing better with higher accuracy. It's more adaptive to your learning patterns."
+        else:
+            comparison = "Both algorithms are performing equally well. Choose based on your preference for review intervals."
+    
+    return jsonify({
+        'sm2_due': sm2_due,
+        'fsrs_due': fsrs_due,
+        'comparison': comparison
+    })
+
 def create_test_cards():
     test_words = [
         ('ubiquitous', 'present, appearing, or found everywhere'),
@@ -241,6 +328,19 @@ def create_test_cards():
     db.session.commit()
     logger.info("Test cards created successfully")
 
+# Add a route to serve static files
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
+
 if __name__ == '__main__':
-    create_app()
-    app.run(debug=True, host='localhost', port=3000) 
+    with app.app_context():
+        db.create_all()
+        # Check if we already have cards
+        card_count = Card.query.count()
+        logger.info(f"Found {card_count} existing cards")
+        if card_count == 0:
+            create_test_cards()
+    
+    # Run the app with debug mode and allow all hosts
+    app.run(debug=True, host='0.0.0.0', port=8000, threaded=True) 
