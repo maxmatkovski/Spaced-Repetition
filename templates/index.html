@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spaced Repetition Comparison</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .card {
+            perspective: 1000px;
+            height: 300px;
+        }
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+        }
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+        }
+        .card-back {
+            transform: rotateY(180deg);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8">Spaced Repetition Comparison</h1>
+        
+        <!-- Statistics Section -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Algorithm Performance</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- SM2 Stats -->
+                <div>
+                    <h3 class="text-lg font-medium mb-2">SM2 Algorithm</h3>
+                    <div class="space-y-2">
+                        <p>Total Reviews: <span id="sm2TotalReviews">0</span></p>
+                        <p>Correct Reviews: <span id="sm2CorrectReviews">0</span></p>
+                        <p>Accuracy: <span id="sm2Accuracy">0</span>%</p>
+                        <p>Average Interval: <span id="sm2AvgInterval">0</span> days</p>
+                    </div>
+                </div>
+                <!-- FSRS Stats -->
+                <div>
+                    <h3 class="text-lg font-medium mb-2">FSRS Algorithm</h3>
+                    <div class="space-y-2">
+                        <p>Total Reviews: <span id="fsrsTotalReviews">0</span></p>
+                        <p>Correct Reviews: <span id="fsrsCorrectReviews">0</span></p>
+                        <p>Accuracy: <span id="fsrsAccuracy">0</span>%</p>
+                        <p>Average Stability: <span id="fsrsAvgStability">0</span> days</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Card Form -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Add New Card</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Front</label>
+                    <textarea id="cardFront" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" rows="3"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Back</label>
+                    <textarea id="cardBack" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" rows="3"></textarea>
+                </div>
+                <button onclick="addCard()" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    Add Card
+                </button>
+            </div>
+        </div>
+
+        <!-- Review Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- SM2 Review -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">SM2 Algorithm</h2>
+                <div id="sm2Card" class="card mb-4">
+                    <div class="card-inner">
+                        <div class="card-front bg-white rounded-lg border-2 border-gray-200 p-4 flex items-center justify-center">
+                            <p id="sm2Front" class="text-center text-lg"></p>
+                        </div>
+                        <div class="card-back bg-white rounded-lg border-2 border-gray-200 p-4 flex items-center justify-center">
+                            <p id="sm2Back" class="text-center text-lg"></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 gap-2">
+                    <button onclick="rateCard('sm2', 1)" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Again</button>
+                    <button onclick="rateCard('sm2', 2)" class="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600">Hard</button>
+                    <button onclick="rateCard('sm2', 3)" class="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600">Good</button>
+                    <button onclick="rateCard('sm2', 4)" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Easy</button>
+                </div>
+            </div>
+
+            <!-- FSRS Review -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4">FSRS Algorithm</h2>
+                <div id="fsrsCard" class="card mb-4">
+                    <div class="card-inner">
+                        <div class="card-front bg-white rounded-lg border-2 border-gray-200 p-4 flex items-center justify-center">
+                            <p id="fsrsFront" class="text-center text-lg"></p>
+                        </div>
+                        <div class="card-back bg-white rounded-lg border-2 border-gray-200 p-4 flex items-center justify-center">
+                            <p id="fsrsBack" class="text-center text-lg"></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 gap-2">
+                    <button onclick="rateCard('fsrs', 1)" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Again</button>
+                    <button onclick="rateCard('fsrs', 2)" class="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600">Hard</button>
+                    <button onclick="rateCard('fsrs', 3)" class="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600">Good</button>
+                    <button onclick="rateCard('fsrs', 4)" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Easy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSM2Card = null;
+        let currentFSRSCard = null;
+
+        function flipCard(algorithm) {
+            const cardElement = document.getElementById(`${algorithm}Card`);
+            cardElement.classList.toggle('flipped');
+        }
+
+        async function loadCards() {
+            // Load SM2 cards
+            const sm2Response = await fetch('/get_due_cards?algorithm=sm2');
+            const sm2Cards = await sm2Response.json();
+            if (sm2Cards.length > 0) {
+                currentSM2Card = sm2Cards[0];
+                document.getElementById('sm2Front').textContent = currentSM2Card.front;
+                document.getElementById('sm2Back').textContent = currentSM2Card.back;
+            }
+
+            // Load FSRS cards
+            const fsrsResponse = await fetch('/get_due_cards?algorithm=fsrs');
+            const fsrsCards = await fsrsResponse.json();
+            if (fsrsCards.length > 0) {
+                currentFSRSCard = fsrsCards[0];
+                document.getElementById('fsrsFront').textContent = currentFSRSCard.front;
+                document.getElementById('fsrsBack').textContent = currentFSRSCard.back;
+            }
+        }
+
+        async function addCard() {
+            const front = document.getElementById('cardFront').value;
+            const back = document.getElementById('cardBack').value;
+
+            if (!front || !back) {
+                alert('Please fill in both front and back of the card');
+                return;
+            }
+
+            const response = await fetch('/add_card', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ front, back }),
+            });
+
+            if (response.ok) {
+                document.getElementById('cardFront').value = '';
+                document.getElementById('cardBack').value = '';
+                loadCards();
+            }
+        }
+
+        async function updateStatistics() {
+            const response = await fetch('/statistics');
+            const stats = await response.json();
+            
+            // Update SM2 stats
+            document.getElementById('sm2TotalReviews').textContent = stats.sm2.total_reviews;
+            document.getElementById('sm2CorrectReviews').textContent = stats.sm2.correct_reviews;
+            document.getElementById('sm2Accuracy').textContent = stats.sm2.accuracy.toFixed(1);
+            document.getElementById('sm2AvgInterval').textContent = stats.sm2.average_interval.toFixed(1);
+            
+            // Update FSRS stats
+            document.getElementById('fsrsTotalReviews').textContent = stats.fsrs.total_reviews;
+            document.getElementById('fsrsCorrectReviews').textContent = stats.fsrs.correct_reviews;
+            document.getElementById('fsrsAccuracy').textContent = stats.fsrs.accuracy.toFixed(1);
+            document.getElementById('fsrsAvgStability').textContent = stats.fsrs.average_stability.toFixed(1);
+        }
+
+        async function rateCard(algorithm, rating) {
+            const card = algorithm === 'sm2' ? currentSM2Card : currentFSRSCard;
+            if (!card) return;
+
+            const response = await fetch('/review_card', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    card_id: card.id,
+                    rating: rating,
+                    algorithm: algorithm
+                }),
+            });
+
+            if (response.ok) {
+                document.getElementById(`${algorithm}Card`).classList.remove('flipped');
+                if (algorithm === 'sm2') {
+                    currentSM2Card = null;
+                    document.getElementById('sm2Front').textContent = '';
+                    document.getElementById('sm2Back').textContent = '';
+                } else {
+                    currentFSRSCard = null;
+                    document.getElementById('fsrsFront').textContent = '';
+                    document.getElementById('fsrsBack').textContent = '';
+                }
+                await loadCards();
+                await updateStatistics();
+            }
+        }
+
+        // Add click listeners for flipping cards
+        document.getElementById('sm2Card').addEventListener('click', () => flipCard('sm2'));
+        document.getElementById('fsrsCard').addEventListener('click', () => flipCard('fsrs'));
+
+        // Load initial cards and statistics
+        loadCards();
+        updateStatistics();
+    </script>
+</body>
+</html> 
