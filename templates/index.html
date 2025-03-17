@@ -3,335 +3,194 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spaced Repetition Comparison</title>
+    <title>Memora - Spaced Repetition AI</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <style>
-        .card {
-            perspective: 1000px;
-            height: 300px;
-        }
-        .card-inner {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            transform-style: preserve-3d;
-            transition: transform 0.6s;
-        }
-        .card.flipped .card-inner {
-            transform: rotateY(180deg);
-        }
-        .card-front, .card-back {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            backface-visibility: hidden;
-        }
-        .card-back {
-            transform: rotateY(180deg);
-        }
-    </style>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-primary text-white min-h-screen">
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-3xl font-bold text-center mb-8">Spaced Repetition Comparison</h1>
-        
-        <!-- Control Buttons -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <div class="flex justify-center space-x-4">
-                <button onclick="resetCards()" class="bg-red-500 text-white px-6 py-2 rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
-                    Reset All Cards
-                </button>
-                <button onclick="upgradeCards()" class="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
-                    Make All Cards Due Now
-                </button>
-            </div>
-        </div>
-
-        <!-- Statistics Section -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-xl font-semibold mb-4">Algorithm Performance</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <!-- SM2 Stats -->
-                <div>
-                    <h3 class="text-lg font-medium mb-2">SM2 Algorithm</h3>
-                    <div class="space-y-2">
-                        <p>Total Reviews: <span id="sm2TotalReviews">0</span></p>
-                        <p>Correct Reviews: <span id="sm2CorrectReviews">0</span></p>
-                        <p>Accuracy: <span id="sm2Accuracy">0</span>%</p>
-                        <p>Average Interval: <span id="sm2AvgInterval">0</span> days</p>
-                    </div>
-                </div>
-                <!-- FSRS Stats -->
-                <div>
-                    <h3 class="text-lg font-medium mb-2">FSRS Algorithm</h3>
-                    <div class="space-y-2">
-                        <p>Total Reviews: <span id="fsrsTotalReviews">0</span></p>
-                        <p>Correct Reviews: <span id="fsrsCorrectReviews">0</span></p>
-                        <p>Accuracy: <span id="fsrsAccuracy">0</span>%</p>
-                        <p>Average Stability: <span id="fsrsAvgStability">0</span> days</p>
-                    </div>
+        <!-- Header -->
+        <header class="mb-12">
+            <div class="flex justify-between items-center">
+                <h1 class="text-4xl font-bold tracking-tight">Memora</h1>
+                <div class="flex space-x-4">
+                    <button onclick="resetProgress()" class="btn-secondary">Reset Progress</button>
+                    <button onclick="makeAllDue()" class="btn-primary">Review All</button>
                 </div>
             </div>
-        </div>
+            <p class="text-blue-300 mt-2">AI-Powered Spaced Repetition</p>
+        </header>
 
-        <!-- Deck Status -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-xl font-semibold mb-4">Deck Status</h2>
-            <div class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Flashcard Section -->
+            <div class="bg-card rounded-xl p-6 shadow-lg">
+                <div id="flashcard" class="min-h-[300px] flex flex-col justify-between">
                     <div>
-                        <h3 class="text-lg font-medium mb-2">SM2 Status</h3>
-                        <p id="sm2Status" class="text-lg"></p>
+                        <h3 class="text-lg font-semibold mb-2">Current Card</h3>
+                        <div id="card-content" class="text-2xl font-medium"></div>
                     </div>
-                    <div>
-                        <h3 class="text-lg font-medium mb-2">FSRS Status</h3>
-                        <p id="fsrsStatus" class="text-lg"></p>
-                    </div>
-                </div>
-                <div class="mt-4">
-                    <h3 class="text-lg font-medium mb-2">Algorithm Comparison</h3>
-                    <p id="algorithmComparison" class="text-lg"></p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Add Card Form -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-xl font-semibold mb-4">Add New Card</h2>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Front</label>
-                    <textarea id="cardFront" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" rows="3"></textarea>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Back</label>
-                    <textarea id="cardBack" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" rows="3"></textarea>
-                </div>
-                <button onclick="addCard()" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                    Add Card
-                </button>
-            </div>
-        </div>
-
-        <!-- Review Section -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <!-- SM2 Review -->
-            <div class="bg-white rounded-lg shadow-md p-6">
-                <h2 class="text-xl font-semibold mb-4">SM2 Algorithm</h2>
-                <div id="sm2Card" class="card mb-4">
-                    <div class="card-inner">
-                        <div class="card-front bg-white rounded-lg border-2 border-gray-200 p-4 flex items-center justify-center">
-                            <p id="sm2Front" class="text-center text-lg"></p>
-                        </div>
-                        <div class="card-back bg-white rounded-lg border-2 border-gray-200 p-4 flex items-center justify-center">
-                            <p id="sm2Back" class="text-center text-lg"></p>
+                    <div class="mt-6">
+                        <button onclick="flipCard()" class="btn-accent w-full mb-4">Flip Card</button>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <h4 class="text-sm font-medium mb-2">SM2</h4>
+                                <div class="flex space-x-2">
+                                    <button onclick="rateCard('sm2', 1)" class="btn-rating">Again</button>
+                                    <button onclick="rateCard('sm2', 4)" class="btn-rating">Easy</button>
+                                </div>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-medium mb-2">FSRS</h4>
+                                <div class="flex space-x-2">
+                                    <button onclick="rateCard('fsrs', 1)" class="btn-rating">Again</button>
+                                    <button onclick="rateCard('fsrs', 4)" class="btn-rating">Easy</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="grid grid-cols-4 gap-2">
-                    <button onclick="rateCard('sm2', 1)" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Again</button>
-                    <button onclick="rateCard('sm2', 2)" class="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600">Hard</button>
-                    <button onclick="rateCard('sm2', 3)" class="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600">Good</button>
-                    <button onclick="rateCard('sm2', 4)" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Easy</button>
                 </div>
             </div>
 
-            <!-- FSRS Review -->
-            <div class="bg-white rounded-lg shadow-md p-6">
-                <h2 class="text-xl font-semibold mb-4">FSRS Algorithm</h2>
-                <div id="fsrsCard" class="card mb-4">
-                    <div class="card-inner">
-                        <div class="card-front bg-white rounded-lg border-2 border-gray-200 p-4 flex items-center justify-center">
-                            <p id="fsrsFront" class="text-center text-lg"></p>
-                        </div>
-                        <div class="card-back bg-white rounded-lg border-2 border-gray-200 p-4 flex items-center justify-center">
-                            <p id="fsrsBack" class="text-center text-lg"></p>
+            <!-- Statistics Section -->
+            <div class="bg-card rounded-xl p-6 shadow-lg">
+                <h3 class="text-lg font-semibold mb-4">Algorithm Performance</h3>
+                <div class="space-y-6">
+                    <div class="algorithm-stats">
+                        <h4 class="text-blue-300 mb-2">SM2 Algorithm</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="stat-card">
+                                <span class="stat-label">Accuracy</span>
+                                <span id="sm2-accuracy" class="stat-value">0%</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-label">Reviews</span>
+                                <span id="sm2-reviews" class="stat-value">0</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="grid grid-cols-4 gap-2">
-                    <button onclick="rateCard('fsrs', 1)" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Again</button>
-                    <button onclick="rateCard('fsrs', 2)" class="bg-orange-500 text-white px-4 py-2 rounded-md hover:bg-orange-600">Hard</button>
-                    <button onclick="rateCard('fsrs', 3)" class="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600">Good</button>
-                    <button onclick="rateCard('fsrs', 4)" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Easy</button>
+                    <div class="algorithm-stats">
+                        <h4 class="text-blue-300 mb-2">FSRS Algorithm</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="stat-card">
+                                <span class="stat-label">Accuracy</span>
+                                <span id="fsrs-accuracy" class="stat-value">0%</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-label">Reviews</span>
+                                <span id="fsrs-reviews" class="stat-value">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="algorithm-comparison" class="mt-4 p-4 bg-blue-900/30 rounded-lg text-sm">
+                        Loading comparison...
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        let currentSM2Card = null;
-        let currentFSRSCard = null;
-
-        function flipCard(algorithm) {
-            const cardElement = document.getElementById(`${algorithm}Card`);
-            cardElement.classList.toggle('flipped');
-        }
+        let currentCard = null;
+        let isShowingFront = true;
 
         async function loadCards() {
-            // Load SM2 cards
-            const sm2Response = await fetch('/get_due_cards?algorithm=sm2');
-            const sm2Cards = await sm2Response.json();
-            if (sm2Cards.length > 0) {
-                currentSM2Card = sm2Cards[0];
-                document.getElementById('sm2Front').textContent = currentSM2Card.front;
-                document.getElementById('sm2Back').textContent = currentSM2Card.back;
-            }
-
-            // Load FSRS cards
-            const fsrsResponse = await fetch('/get_due_cards?algorithm=fsrs');
-            const fsrsCards = await fsrsResponse.json();
-            if (fsrsCards.length > 0) {
-                currentFSRSCard = fsrsCards[0];
-                document.getElementById('fsrsFront').textContent = currentFSRSCard.front;
-                document.getElementById('fsrsBack').textContent = currentFSRSCard.back;
+            try {
+                const response = await fetch('/get_due_cards');
+                const cards = await response.json();
+                if (cards.length > 0) {
+                    currentCard = cards[0];
+                    displayCard();
+                }
+            } catch (error) {
+                console.error('Error loading cards:', error);
             }
         }
 
-        async function addCard() {
-            const front = document.getElementById('cardFront').value;
-            const back = document.getElementById('cardBack').value;
-
-            if (!front || !back) {
-                alert('Please fill in both front and back of the card');
-                return;
-            }
-
-            const response = await fetch('/add_card', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ front, back }),
-            });
-
-            if (response.ok) {
-                document.getElementById('cardFront').value = '';
-                document.getElementById('cardBack').value = '';
-                loadCards();
-            }
+        function displayCard() {
+            const content = document.getElementById('card-content');
+            content.textContent = isShowingFront ? currentCard.front : currentCard.back;
         }
 
-        async function updateStatistics() {
-            const response = await fetch('/statistics');
-            const stats = await response.json();
-            
-            // Update SM2 stats
-            document.getElementById('sm2TotalReviews').textContent = stats.sm2.total_reviews;
-            document.getElementById('sm2CorrectReviews').textContent = stats.sm2.correct_reviews;
-            document.getElementById('sm2Accuracy').textContent = stats.sm2.accuracy.toFixed(1);
-            document.getElementById('sm2AvgInterval').textContent = stats.sm2.average_interval.toFixed(1);
-            
-            // Update FSRS stats
-            document.getElementById('fsrsTotalReviews').textContent = stats.fsrs.total_reviews;
-            document.getElementById('fsrsCorrectReviews').textContent = stats.fsrs.correct_reviews;
-            document.getElementById('fsrsAccuracy').textContent = stats.fsrs.accuracy.toFixed(1);
-            document.getElementById('fsrsAvgStability').textContent = stats.fsrs.average_stability.toFixed(1);
-        }
-
-        async function updateDeckStatus() {
-            const response = await fetch('/deck_status');
-            const status = await response.json();
-            
-            // Update SM2 status
-            document.getElementById('sm2Status').textContent = status.sm2_due === 0 
-                ? "All cards reviewed! ✅" 
-                : `${status.sm2_due} cards due for review`;
-            
-            // Update FSRS status
-            document.getElementById('fsrsStatus').textContent = status.fsrs_due === 0 
-                ? "All cards reviewed! ✅" 
-                : `${status.fsrs_due} cards due for review`;
-            
-            // Update comparison
-            document.getElementById('algorithmComparison').textContent = status.comparison;
+        function flipCard() {
+            isShowingFront = !isShowingFront;
+            displayCard();
         }
 
         async function rateCard(algorithm, rating) {
-            const card = algorithm === 'sm2' ? currentSM2Card : currentFSRSCard;
-            if (!card) return;
+            if (!currentCard) return;
 
-            const response = await fetch('/review_card', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    card_id: card.id,
-                    rating: rating,
-                    algorithm: algorithm
-                }),
-            });
-
-            if (response.ok) {
-                document.getElementById(`${algorithm}Card`).classList.remove('flipped');
-                if (algorithm === 'sm2') {
-                    currentSM2Card = null;
-                    document.getElementById('sm2Front').textContent = '';
-                    document.getElementById('sm2Back').textContent = '';
-                } else {
-                    currentFSRSCard = null;
-                    document.getElementById('fsrsFront').textContent = '';
-                    document.getElementById('fsrsBack').textContent = '';
-                }
-                await loadCards();
-                await updateStatistics();
-                await updateDeckStatus();
+            try {
+                await fetch('/review_card', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        card_id: currentCard.id,
+                        algorithm: algorithm,
+                        rating: rating,
+                        review_time: 0
+                    }),
+                });
+                
+                updateStats();
+                isShowingFront = true;
+                loadCards();
+            } catch (error) {
+                console.error('Error rating card:', error);
             }
         }
 
-        // Add click listeners for flipping cards
-        document.getElementById('sm2Card').addEventListener('click', () => flipCard('sm2'));
-        document.getElementById('fsrsCard').addEventListener('click', () => flipCard('fsrs'));
+        async function updateStats() {
+            try {
+                const [statsResponse, statusResponse] = await Promise.all([
+                    fetch('/statistics'),
+                    fetch('/deck_status')
+                ]);
+                
+                const stats = await statsResponse.json();
+                const status = await statusResponse.json();
 
-        // Load initial cards and statistics
+                document.getElementById('sm2-accuracy').textContent = 
+                    stats.sm2.accuracy.toFixed(1) + '%';
+                document.getElementById('sm2-reviews').textContent = 
+                    stats.sm2.total_reviews;
+                document.getElementById('fsrs-accuracy').textContent = 
+                    stats.fsrs.accuracy.toFixed(1) + '%';
+                document.getElementById('fsrs-reviews').textContent = 
+                    stats.fsrs.total_reviews;
+                
+                document.getElementById('algorithm-comparison').textContent = 
+                    status.comparison;
+            } catch (error) {
+                console.error('Error updating stats:', error);
+            }
+        }
+
+        async function resetProgress() {
+            try {
+                await fetch('/reset', { method: 'POST' });
+                location.reload();
+            } catch (error) {
+                console.error('Error resetting progress:', error);
+            }
+        }
+
+        async function makeAllDue() {
+            try {
+                await fetch('/upgrade_all', { method: 'POST' });
+                location.reload();
+            } catch (error) {
+                console.error('Error making cards due:', error);
+            }
+        }
+
+        // Initialize
         loadCards();
-        updateStatistics();
-        updateDeckStatus();
-
-        async function resetCards() {
-            if (!confirm('Are you sure you want to reset all cards? This will delete all progress.')) {
-                return;
-            }
-
-            const response = await fetch('/reset', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (response.ok) {
-                alert('Cards reset successfully');
-                await loadCards();
-                await updateStatistics();
-                await updateDeckStatus();
-            } else {
-                alert('Failed to reset cards');
-            }
-        }
-
-        async function upgradeCards() {
-            if (!confirm('Are you sure you want to make all cards due now?')) {
-                return;
-            }
-
-            const response = await fetch('/upgrade_all', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (response.ok) {
-                alert('All cards are now due for review');
-                await loadCards();
-                await updateStatistics();
-                await updateDeckStatus();
-            } else {
-                alert('Failed to upgrade cards');
-            }
-        }
+        updateStats();
+        setInterval(updateStats, 30000); // Update stats every 30 seconds
     </script>
 </body>
 </html> 
