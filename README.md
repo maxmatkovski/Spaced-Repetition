@@ -9,6 +9,7 @@ A modern web application for comparing and analyzing the effectiveness of differ
 - [Algorithm Comparison](#algorithm-comparison)
 - [Technical Implementation](#technical-implementation)
 - [Installation](#installation)
+- [Deployment](#deployment)
 - [Usage](#usage)
 - [Future Development](#future-development)
 
@@ -168,6 +169,68 @@ pip install -r requirements.txt
 ```bash
 python app.py
 ```
+
+## Deployment
+
+### Prerequisites
+1. A GitHub account
+2. A Render.com account (free tier available)
+3. Your application code pushed to a GitHub repository
+
+### Step 1: Prepare Your Repository
+1. Create a new GitHub repository
+2. Initialize git in your local project (if not already done):
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin https://github.com/yourusername/your-repo-name.git
+git push -u origin main
+```
+
+### Step 2: Deploy to Render.com
+1. Log in to [Render.com](https://render.com)
+2. Click "New +" and select "Web Service"
+3. Connect your GitHub repository
+4. Configure the web service:
+   - Name: `your-app-name`
+   - Environment: `Python 3`
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `gunicorn app:app`
+   - Plan: `Free`
+
+### Step 3: Configure Environment Variables
+Add the following environment variables in Render's dashboard:
+- `SECRET_KEY`: A secure random string (e.g., output of `python -c "import secrets; print(secrets.token_hex(16))"`)
+- `DATABASE_URL`: Will be auto-configured if using Render's PostgreSQL (optional)
+
+### Step 4: Database Setup (Optional)
+1. Create a new PostgreSQL database in Render:
+   - Go to "New +" → "PostgreSQL"
+   - Choose the free tier
+   - Note the Internal Database URL
+2. Add the Internal Database URL to your web service's environment variables
+
+### Step 5: Verify Deployment
+1. Wait for the initial deploy to complete (5-10 minutes)
+2. Your app will be available at `https://your-app-name.onrender.com`
+3. Monitor the deployment logs for any issues
+
+### Common Issues and Solutions
+1. **Application Error**:
+   - Check deployment logs in Render dashboard
+   - Verify environment variables are set correctly
+   - Ensure `requirements.txt` includes all dependencies
+
+2. **Database Connection Issues**:
+   - Verify `DATABASE_URL` is set correctly
+   - Check database credentials
+   - Ensure database migrations are running
+
+3. **Static Files Not Loading**:
+   - Verify static files are properly configured in Flask
+   - Check file permissions
+   - Clear browser cache
 
 ## Usage
 
